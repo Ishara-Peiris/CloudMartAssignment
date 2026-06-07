@@ -13,6 +13,9 @@ import uuid
 import logging
 from datetime import datetime
 from flask import Flask, jsonify, request, abort
+import boto3
+from boto3.dynamodb.conditions import Key, Attr
+from decimal import Decimal
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -166,20 +169,128 @@ class InMemoryStore:
 class DynamoDBStore:
     """
     AWS DynamoDB adapter.
-
-    To use: set STORE_BACKEND=dynamodb and DYNAMODB_TABLE=<table-name>
-
-    Students: implement each method using boto3.
-    Requires IRSA / workload identity for credentials.
     """
 
     def __init__(self):
-        # TODO: import boto3; create dynamodb resource
-        # self.table = boto3.resource('dynamodb').Table(os.environ['DYNAMODB_TABLE'])
-        raise NotImplementedError(
-            "DynamoDB store not implemented yet. "
-            "See the assignment brief Section 3.3 for guidance."
+        self.table_name = os.environ.get("DYNAMODB_TABLE")
+        if not self.table_name:
+            raise ValueError("DYNAMODB_TABLE environment variable is required for DynamoDBStore")
+        self.dynamodb = boto3.resource("dynamodb")
+        self.table = self.dynamodb.Table(self.table_name)
+
+    def _decimal_to_float(self, obj):
+        if isinstance(obj, list):
+            return [self._decimal_to_float(i) for i in obj]
+        elif isinstance(obj, dict):
+            return {k: self._decimal_to_float(v) for k, v in obj.items()}
+        elif isinstance(obj, Decimal):
+            return float(obj)
+        return obj
+
+    def get_all(self, category=None, search=None):
+        if category:
+            response = self.table.scan(FilterExpression=Attr("category").eq(category))
+        else:
+            response = self.table.scan()
+        
+        items = response.get("Items", [])
+        if search:
+            q = search.lower()
+            items = [
+                i for i in items 
+                if q in i.get("name", "").lower() or q in i.get("description", "").lower()
+            ]
+        return self._decimal_to_float(items)
+
+    def get_by_id(self, product_id):
+        response = self.table.get_item(Key={"id": product_id})
+        item = response.get("Item")
+        return self._decimal_to_float(item)
+
+    def create(self, data):
+        product_id = f"prod-{uuid.uuid4().hex[:6]}"
+        product = {
+            "id": product_id,
+            "name": data["name"],
+            "description": data.get("description", ""),
+            "price": Decimal(str(data["price"])),
+            "category": data.get("category", "general"),
+            "stock": int(data.get("stock", 0)),
+            "imageUrl": data.get("imageUrl", ""),
+            "createdAt": datetime.utcnow().isoformat() + "Z",
+        }
+        self.table.put_item(Item=product)
+        return self._decimal_to_float(product)
+
+    def update(self, product_id, data):
+        # Check if product exists
+        if not self.get_by_id(product_id):
+            return None
+
+        update_expr = "set "
+        attr_values = {}
+        attr_names = {}
+        
+        fields = ["name", "description", "price", "category", "stock", "imageUrl"]
+        updates = []
+        for field in fields:
+            if field in data:
+                val = data[field]
+                if field == "price":
+                    val = Decimal(str(val))
+                elif field == "stock":
+                    val = int(val)
+                
+                updates.append(f"#{field} = :{field}")
+                attr_values[f":{field}"] = val
+                attr_names[f"#{field}"] = field
+        
+        if not updates:
+            return self.get_by_id(product_id)
+            
+        updates.append("#updatedAt = :updatedAt")
+        attr_values[":updatedAt"] = datetime.utcnow().isoformat() + "Z"
+        attr_names["#updatedAt"] = "updatedAt"
+        
+        update_expr += ", ".join(updates)
+        
+        response = self.table.update_item(
+            Key={"id": product_id},
+            UpdateExpression=update_expr,
+            ExpressionAttributeValues=attr_values,
+            ExpressionAttributeNames=attr_names,
+            ReturnValues="ALL_NEW"
         )
+        return self._decimal_to_float(response.get("Attributes"))
+
+    def delete(self, product_id):
+        try:
+            self.table.delete_item(Key={"id": product_id})
+            return True
+        except Exception:
+            return False
+
+    def check_stock(self, product_id, quantity):
+        product = self.get_by_id(product_id)
+        if not product:
+            return False
+        return product.get("stock", 0) >= quantity
+
+    def decrement_stock(self, product_id, quantity):
+        try:
+            self.table.update_item(
+                Key={"id": product_id},
+                UpdateExpression="set stock = stock - :val",
+                ConditionExpression="stock >= :val",
+                ExpressionAttributeValues={":val": quantity},
+                ReturnValues="UPDATED_NEW"
+            )
+            return True
+        except self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
+            return False
+        except Exception as e:
+            logger.error(f"Error decrementing stock: {e}")
+            return False
 
 
 class FirestoreStore:

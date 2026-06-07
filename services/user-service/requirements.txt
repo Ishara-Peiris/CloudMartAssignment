@@ -3,5 +3,5 @@ gunicorn==22.0.0
 bcrypt==4.1.3
 PyJWT==2.8.0
 # Uncomment for PostgreSQL backend:
-# psycopg2-binary==2.9.9
+psycopg2-binary==2.9.9
 # SQLAlchemy==2.0.30

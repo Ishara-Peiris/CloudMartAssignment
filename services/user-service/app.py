@@ -17,6 +17,8 @@ from functools import wraps
 from flask import Flask, jsonify, request, abort
 import bcrypt
 import jwt as pyjwt
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -112,22 +114,122 @@ class InMemoryUserStore:
 
 class PostgresUserStore:
     """
-    PostgreSQL adapter — students implement this for the assignment.
-
-    Set DB_BACKEND=postgres and provide:
-      DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
-    or
-      DATABASE_URL (connection string)
-
-    Use psycopg2 or SQLAlchemy. Credentials should come from
-    your cloud provider's secret management service via workload identity.
+    PostgreSQL adapter.
     """
 
     def __init__(self):
-        raise NotImplementedError(
-            "PostgreSQL store not implemented yet. "
-            "See the assignment brief Section 3.1 for guidance."
+        self.host = os.environ.get("DB_HOST")
+        self.port = os.environ.get("DB_PORT", "5432")
+        self.dbname = os.environ.get("DB_NAME")
+        self.user = os.environ.get("DB_USER")
+        self.password = os.environ.get("DB_PASSWORD")
+        
+        self._init_db()
+
+    def _get_connection(self):
+        return psycopg2.connect(
+            host=self.host,
+            port=self.port,
+            dbname=self.dbname,
+            user=self.user,
+            password=self.password
         )
+
+    def _init_db(self):
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id VARCHAR(50) PRIMARY KEY,
+                        email VARCHAR(255) UNIQUE NOT NULL,
+                        name VARCHAR(255) NOT NULL,
+                        passwordHash TEXT NOT NULL,
+                        role VARCHAR(50) NOT NULL,
+                        address TEXT,
+                        createdAt VARCHAR(50) NOT NULL,
+                        updatedAt VARCHAR(50)
+                    )
+                """)
+            conn.commit()
+        finally:
+            conn.close()
+
+    def find_by_email(self, email):
+        conn = self._get_connection()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM users WHERE email = %s", (email,))
+                user = cur.fetchone()
+                return dict(user) if user else None
+        finally:
+            conn.close()
+
+    def find_by_id(self, user_id):
+        conn = self._get_connection()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+                user = cur.fetchone()
+                return dict(user) if user else None
+        finally:
+            conn.close()
+
+    def create(self, user_data):
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO users (id, email, name, passwordHash, role, address, createdAt)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    user_data['id'],
+                    user_data['email'],
+                    user_data['name'],
+                    user_data['passwordHash'],
+                    user_data['role'],
+                    user_data['address'],
+                    user_data['createdAt']
+                ))
+            conn.commit()
+            return user_data
+        finally:
+            conn.close()
+
+    def update(self, user_id, data):
+        conn = self._get_connection()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                updates = []
+                params = []
+                for key in ["name", "address", "email"]:
+                    if key in data:
+                        updates.append(f"{key} = %s")
+                        params.append(data[key])
+                
+                if not updates:
+                    return self.find_by_id(user_id)
+                
+                updates.append("updatedAt = %s")
+                params.append(datetime.utcnow().isoformat() + "Z")
+                
+                params.append(user_id)
+                query = f"UPDATE users SET {', '.join(updates)} WHERE id = %s RETURNING *"
+                cur.execute(query, tuple(params))
+                user = cur.fetchone()
+                conn.commit()
+                return dict(user) if user else None
+        finally:
+            conn.close()
+
+    def list_all(self):
+        conn = self._get_connection()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM users")
+                return [dict(u) for u in cur.fetchall()]
+        finally:
+            conn.close()
 
 
 def create_user_store():
