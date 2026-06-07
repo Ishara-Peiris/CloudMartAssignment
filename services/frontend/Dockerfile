@@ -1,38 +1,24 @@
-# ---- Stage 1: Build React app ----
+# --- Build stage ---
 FROM node:20-alpine AS builder
-
 WORKDIR /build
 COPY package*.json ./
-RUN npm install
-
-COPY public/ ./public/
-COPY src/ ./src/
-
+RUN npm ci
+COPY . .
 RUN npm run build
 
-# ---- Stage 2: Serve with Nginx ----
-FROM nginx:1.27-alpine
+# --- Runtime stage ---
+FROM nginx:alpine
+WORKDIR /usr/share/nginx/html
 
-# Remove default nginx config
-RUN rm /etc/nginx/conf.d/default.conf
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN chown -R appuser:appgroup /usr/share/nginx/html /var/cache/nginx /var/run /var/log/nginx
 
-# Copy custom nginx config
+COPY --from=builder /build/dist .
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built React app
-COPY --from=builder /build/build /usr/share/nginx/html
-
-# Run as non-root user
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chown -R nginx:nginx /var/cache/nginx && \
-    chown -R nginx:nginx /var/log/nginx && \
-    touch /var/run/nginx.pid && chown nginx:nginx /var/run/nginx.pid
-
-USER nginx
-
+USER appuser
 EXPOSE 80
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD wget -qO- http://localhost:80/health || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
