@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudmart-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<your-org>/cloudmart.git
+    targetRevision: main
+    path: k8s/charts
+    helm:
+      valueFiles:
+        - values-prod.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloudmart-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudmart-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<your-org>/cloudmart.git
+    targetRevision: develop
+    path: k8s/charts
+    helm:
+      valueFiles:
+        - values-staging.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloudmart-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

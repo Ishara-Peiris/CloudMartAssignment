@@ -1,21 +1,13 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
 metadata:
   name: product-service
   namespace: {{ .Values.namespace }}
-  labels:
-    app: product-service
-    project: cloudmart
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: product-service
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   template:
     metadata:
       labels:
@@ -63,3 +55,46 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3
+  strategy:
+    canary:
+      steps:
+        - setWeight: 20
+        - pause: { duration: 2m }
+        - setWeight: 50
+        - pause: { duration: 2m }
+        - setWeight: 100
+      analysis:
+        templates:
+          - templateName: product-error-rate
+        startingStep: 1
+        args:
+          - name: service-name
+            value: product-service
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: product-error-rate
+  namespace: {{ .Values.namespace }}
+spec:
+  args:
+    - name: service-name
+  metrics:
+    - name: error-rate
+      interval: 1m
+      failureLimit: 1
+      provider:
+        cloudWatch:
+          interval: 1m
+          metricDataQueries:
+            - id: errors
+              metricStat:
+                metric:
+                  namespace: CloudMart/Services
+                  metricName: 5xxErrorRate
+                  dimensions:
+                    - name: Service
+                      value: "{{args.service-name}}"
+                period: 60
+                stat: Average
+      successCondition: result[0] <= 1   # Halt if error rate > 1%

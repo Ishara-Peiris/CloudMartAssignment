@@ -1,0 +1,107 @@
+# frontend → product-service (port 8001)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-product
+  namespace: cloudmart-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: product-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 8001
+---
+# frontend → order-service (port 8002)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-order
+  namespace: cloudmart-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: order-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 8002
+---
+# frontend → user-service (port 8003)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-user
+  namespace: cloudmart-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: user-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 8003
+---
+# order-service → product-service (ClusterIP, port 8001)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-order-to-product
+  namespace: cloudmart-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: product-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: order-service
+      ports:
+        - protocol: TCP
+          port: 8001
+---
+# Allow all pods egress to AWS managed services (SQS, DynamoDB via VPC endpoints)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-aws-services
+  namespace: cloudmart-prod
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443    # HTTPS to VPC endpoints / AWS APIs
+    - ports:
+        - protocol: TCP
+          port: 5432   # PostgreSQL to RDS (data subnet)
+    - ports:
+        - protocol: TCP
+          port: 53    # DNS
+    - ports:
+        - protocol: UDP
+          port: 53
