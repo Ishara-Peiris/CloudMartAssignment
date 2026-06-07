@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+  namespace: {{ .Values.namespace }}
+data:
+  dbName: {{ .Values.config.dbName }}
+  dbUser: {{ .Values.config.dbUser }}
+  awsRegion: {{ .Values.config.awsRegion }}

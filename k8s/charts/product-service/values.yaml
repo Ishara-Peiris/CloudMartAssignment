@@ -1,0 +1,32 @@
+image:
+  repository: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/cloudmart/product-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 8001
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+hpa:
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+
+config:
+  dynamodbTableName: cloudmart-products
+  awsRegion: us-east-1
+
+serviceAccount:
+  irsaRoleArn: ""
+
+namespace: cloudmart-prod

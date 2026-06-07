@@ -1,0 +1,18 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: notification-service-scaler
+  namespace: {{ .Values.namespace }}
+spec:
+  scaleTargetRef:
+    name: notification-service
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: {{ .Values.config.sqsQueueUrl }}
+        queueLength: "5"
+        awsRegion: {{ .Values.config.awsRegion }}
+      authenticationRef:
+        name: keda-sqs-auth # This would need to be created or configured

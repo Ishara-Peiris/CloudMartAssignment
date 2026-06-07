@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notification-service-pdb
+  namespace: {{ .Values.namespace }}
+spec:
+  minAvailable: 0 # Allow full termination for re-creation or scale down to 0
+  selector:
+    matchLabels:
+      app: notification-service

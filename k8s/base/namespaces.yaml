@@ -3,13 +3,13 @@ kind: Namespace
 metadata:
   name: cloudmart-prod
   labels:
-    app: cloudmart
-    environment: production
+    environment: prod
+    project: cloudmart
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: cloudmart-staging
   labels:
-    app: cloudmart
     environment: staging
+    project: cloudmart

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: notification-service
+description: CloudMart Notification Service
+version: 0.1.0
+appVersion: "1.0.0"

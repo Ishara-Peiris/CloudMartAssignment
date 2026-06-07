@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-service-config
+  namespace: {{ .Values.namespace }}
+data:
+  dynamodbTableName: {{ .Values.config.dynamodbTableName }}
+  awsRegion: {{ .Values.config.awsRegion }}
