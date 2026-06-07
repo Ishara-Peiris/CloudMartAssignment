@@ -1,0 +1,24 @@
+# ConfigMap for non-sensitive configuration
+# Sensitive values (DB passwords, JWT secrets) should go in Kubernetes Secrets
+# injected from your cloud provider's secret management service.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudmart-config
+  namespace: cloudmart-prod
+data:
+  # Product Service
+  PRODUCT_STORE_BACKEND: "memory"   # Change to dynamodb|firestore|cosmosdb
+
+  # Order Service
+  PRODUCT_SERVICE_URL: "http://product-service:8001"
+  ORDER_QUEUE_BACKEND: "memory"     # Change to sqs|pubsub|servicebus
+
+  # Notification Service
+  ORDER_SERVICE_URL: "http://order-service:8002"
+  NOTIFICATION_QUEUE_BACKEND: "memory"
+  NOTIFICATION_EMAIL_BACKEND: "console"
+  NOTIFICATION_POLL_INTERVAL: "5000"
+
+  # User Service
+  USER_DB_BACKEND: "memory"         # Change to postgres

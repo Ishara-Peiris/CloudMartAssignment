@@ -1,0 +1,21 @@
+{
+  "name": "cloudmart-order-service",
+  "version": "1.0.0",
+  "description": "CloudMart Order Service — manages orders and emits events to message queue",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "jest --coverage"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "uuid": "^9.0.1",
+    "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

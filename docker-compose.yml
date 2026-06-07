@@ -1,0 +1,112 @@
+# CloudMart — Local Development Environment
+# Run: docker compose up --build
+# Access: http://localhost:3000
+
+services:
+  # ---- Product Service (Python/Flask) ----
+  product-service:
+    build: ./services/product-service
+    container_name: cloudmart-product
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - FLASK_DEBUG=true
+      - STORE_BACKEND=memory          # Change to dynamodb|firestore|cosmosdb for cloud
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    networks:
+      - cloudmart
+
+  # ---- Order Service (Node.js/Express) ----
+  order-service:
+    build: ./services/order-service
+    container_name: cloudmart-order
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - PRODUCT_SERVICE_URL=http://product-service:8001
+      - QUEUE_BACKEND=memory           # Change to sqs|pubsub|servicebus for cloud
+    depends_on:
+      product-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    networks:
+      - cloudmart
+
+  # ---- User Service (Python/Flask) ----
+  user-service:
+    build: ./services/user-service
+    container_name: cloudmart-user
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - FLASK_DEBUG=true
+      - DB_BACKEND=memory              # Change to postgres for cloud
+      - JWT_SECRET=cloudmart-dev-secret-change-in-production
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    networks:
+      - cloudmart
+
+  # ---- Notification Service (Node.js) ----
+  notification-service:
+    build: ./services/notification-service
+    container_name: cloudmart-notification
+    ports:
+      - "8004:8004"
+    environment:
+      - PORT=8004
+      - ORDER_SERVICE_URL=http://order-service:8002
+      - QUEUE_BACKEND=memory           # Change to sqs|pubsub|servicebus for cloud
+      - EMAIL_BACKEND=console          # Change to ses|sendgrid for cloud
+      - POLL_INTERVAL_MS=5000
+    depends_on:
+      order-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    networks:
+      - cloudmart
+
+  # ---- Frontend (React + Nginx) ----
+  frontend:
+    build: ./services/frontend
+    container_name: cloudmart-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - product-service
+      - order-service
+      - user-service
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    networks:
+      - cloudmart
+
+networks:
+  cloudmart:
+    driver: bridge

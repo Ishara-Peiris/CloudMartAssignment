@@ -1,0 +1,19 @@
+{
+  "name": "cloudmart-notification-service",
+  "version": "1.0.0",
+  "description": "CloudMart Notification Service — consumes order events and sends email notifications",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "jest --coverage"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "axios": "^1.7.2",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: cloudmart-prod
+  labels:
+    app: user-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      # TODO: Add serviceAccountName for workload identity
+      # serviceAccountName: user-service-sa
+      containers:
+      - name: user-service
+        image: <YOUR-REGISTRY>/user-service:latest
+        ports:
+        - containerPort: 8003
+        env:
+        - name: PORT
+          value: "8003"
+        - name: DB_BACKEND
+          valueFrom:
+            configMapKeyRef:
+              name: cloudmart-config
+              key: USER_DB_BACKEND
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cloudmart-secrets
+              key: JWT_SECRET
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8003
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 10
+          periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: cloudmart-prod
+spec:
+  selector:
+    app: user-service
+  ports:
+  - port: 8003
+    targetPort: 8003
+  type: ClusterIP
